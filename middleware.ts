@@ -17,7 +17,7 @@ export default async function middleware(req: NextRequest) {
   if (refreshToken) {
     try {
       const res = await fetch(
-        "https://fabm.online/backend_signlink/api/users/refresh",
+        `${process.env.NEXT_PUBLIC_API_URL}users/refresh`,
         {
           method: "POST",
           headers: { "Content-Type": "application/json" },

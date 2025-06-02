@@ -44,7 +44,7 @@ const Layout = ({ children }: { children: React.ReactNode }) => {
       if (refreshToken) {
         try {
           const res = await fetch(
-            "https://fabm.online/backend_signlink/api/users/refresh",
+            `${process.env.NEXT_PUBLIC_API_URL}users/refresh`,
             {
               method: "POST",
               headers: { "Content-Type": "application/json" },
@@ -71,7 +71,7 @@ const Layout = ({ children }: { children: React.ReactNode }) => {
     const fetchFriends = async (token: string) => {
       try {
         const response = await fetch(
-          "https://fabm.online/backend_signlink/api/users/friends",
+          `${process.env.NEXT_PUBLIC_API_URL}users/friends`,
           {
             method: "GET",
             headers: {
@@ -174,10 +174,18 @@ const Layout = ({ children }: { children: React.ReactNode }) => {
                 <span>Chats</span>
               </li>
             </Link>
-            <li className="flex items-center space-x-2 p-2 hover:bg-gray-100 rounded-md">
-              <FiSettings />
-              <span>Setting</span>
-            </li>
+            <Link href="/chats/settings">
+              <li
+                className={`flex items-center space-x-2 p-2 rounded-md ${
+                  pathname.startsWith("/chats/settings")
+                    ? "bg-gradient-to-r from-purple-500 to-blue-500 text-white"
+                    : "hover:bg-gray-100"
+                }`}
+              >
+                <FiSettings />
+                <span>Setting</span>
+              </li>
+            </Link>
           </ul>
         </div>
 

@@ -18,6 +18,7 @@ interface Message {
   text: string;
   createdAt: string;
   seenBy: string[];
+  seenByUsernames?: string[];
   attachment?: Attachment;
 }
 
@@ -26,6 +27,7 @@ export default function Page({ params }: { params: Promise<{ id: string }> }) {
   const [messages, setMessages] = useState<Message[]>([]);
   const [conversations, setConversations] = useState<ChatGroup[]>([]);
   const [currentUserId, setCurrentUserId] = useState<string | null>(null);
+  const [currentUserName, setCurrentUserName] = useState<string | null>(null);
   const [userMap, setUserMap] = useState<Record<string, string>>({});
   const [skip, setSkip] = useState(0);
   const [hasMore, setHasMore] = useState(true);
@@ -61,18 +63,20 @@ export default function Page({ params }: { params: Promise<{ id: string }> }) {
     const formData = new FormData();
     formData.append("file", file);
     formData.append("title", file.name);
+    console.log(file);
 
-    const res = await fetch(
-      "https://fabm.online/backend_signlink/api/media/upload",
-      {
-        method: "POST",
-        headers: { Authorization: `Bearer ${token}`! },
-        body: formData,
-      }
-    );
+    const res = await fetch(`${process.env.NEXT_PUBLIC_API_URL}media/upload`, {
+      method: "POST",
+      headers: { Authorization: `Bearer ${token}`! },
+      body: formData,
+    });
+
+    // Verificar si la respuesta es exitosa
     if (!res.ok) throw new Error("Error al subir archivo");
     const data = await res.json();
-    return { id: data.attachmentId, url: data.url, type: file.type };
+
+    console.log("Archivo subido:", data);
+    return { id: data._id, url: data.url, type: file.type };
   };
 
   // Cerrar picker si clic fuera
@@ -106,25 +110,23 @@ export default function Page({ params }: { params: Promise<{ id: string }> }) {
     const fetchInitial = async () => {
       try {
         const res = await fetch(
-          `https://fabm.online/backend_signlink/api/conversation/conversation/${id}`,
+          `${process.env.NEXT_PUBLIC_API_URL}conversation/conversation/${id}`,
           { headers: { Authorization: `Bearer ${token}` } }
         );
         const convo = await res.json();
         setConversations([convo]);
 
-        const meRes = await fetch(
-          "https://fabm.online/backend_signlink/api/users",
-          {
-            headers: { Authorization: `Bearer ${token}` },
-          }
-        );
+        const meRes = await fetch(`${process.env.NEXT_PUBLIC_API_URL}users`, {
+          headers: { Authorization: `Bearer ${token}` },
+        });
         const me = await meRes.json();
         setCurrentUserId(me.user.id);
+        setCurrentUserName(me.user.username);
 
         const map: Record<string, string> = {};
         for (const member of convo.members) {
           const userRes = await fetch(
-            `https://fabm.online/backend_signlink/api/users/friend/id/${member.userId}`,
+            `${process.env.NEXT_PUBLIC_API_URL}users/friend/id/${member.userId}`,
             { headers: { Authorization: `Bearer ${token}` } }
           );
           const user = await userRes.json();
@@ -143,6 +145,27 @@ export default function Page({ params }: { params: Promise<{ id: string }> }) {
     fetchInitial();
   }, [id]);
 
+  useEffect(() => {
+    if (!socket || !currentUserId) return;
+
+    console.log("mensages", messages);
+
+    const unseenMessages = messages.filter(
+      (msg) =>
+        !msg.seenBy?.includes(currentUserId!) && msg.sender !== currentUserId
+    );
+
+    console.log("Mensajes no vistos:", unseenMessages);
+
+    for (const msg of unseenMessages) {
+      console.log("Conversación:", msg);
+      socket.emit("message-seen", {
+        messageId: msg.id,
+        conversationId: id,
+      });
+    }
+  }, [messages, socket, currentUserId]);
+
   // Carga paginada de mensajes
   const loadMoreMessages = async (
     customSkip = skip,
@@ -154,24 +177,27 @@ export default function Page({ params }: { params: Promise<{ id: string }> }) {
     setIsLoadingMore(true);
     try {
       const res = await fetch(
-        `https://fabm.online/backend_signlink/api/conversation/get-messages/${id}?limit=10&skip=${customSkip}`,
+        `${process.env.NEXT_PUBLIC_API_URL}conversation/get-messages/${id}?limit=10&skip=${customSkip}`,
         { headers: { Authorization: `Bearer ${token}` } }
       );
       const data = await res.json();
+
+      console.log("Cargando mensajes:", data);
       if (!data.length) {
         setHasMore(false);
       } else {
         const formatted: Message[] = data.map((m: any) => ({
-          id: m.id,
+          id: m._id,
           sender: m.senderId,
           text: m.content,
           createdAt: m.createdAt,
           seenBy: m.seenBy || [],
+          seenByUsernames: m.seenByUsernames || [],
           attachment: m.attachmentId
             ? {
                 id: m.attachmentId,
-                url: m.attachmentUrl,
-                type: m.attachmentType,
+                url: m.attachment.url,
+                type: m.attachment.type,
               }
             : undefined,
         }));
@@ -198,7 +224,6 @@ export default function Page({ params }: { params: Promise<{ id: string }> }) {
     return () => el.removeEventListener("scroll", onScroll);
   }, [skip, hasMore, isLoadingMore]);
 
-  // WebSocket: recibir mensajes & read receipts
   useEffect(() => {
     if (!socket) return;
     socket.emit("join-room", id);
@@ -206,22 +231,49 @@ export default function Page({ params }: { params: Promise<{ id: string }> }) {
     const handleIncoming = (msg: any) => {
       const newMsg: Message = {
         id: msg.id,
-        sender: msg.sender || msg.id,
+        sender: msg.sender,
         text: msg.text || msg.message,
         createdAt: msg.createdAt,
         seenBy: msg.seenBy || [],
         attachment: msg.attachment || undefined,
+        seenByUsernames: msg.seenByUsernames || [],
       };
-      setMessages((prev) => [...prev, newMsg]);
+
+      console.log("Nuevo mensaje recibido:", newMsg);
+
+      setMessages((prev) => {
+        if (
+          currentUserId &&
+          msg.sender !== currentUserId &&
+          !msg.seenBy.includes(currentUserId)
+        ) {
+          socket.emit("message-seen", {
+            messageId: msg.id,
+            conversationId: id,
+          });
+        }
+
+        return [...prev, newMsg];
+      });
     };
 
-    const handleSeen = (payload: { messageId: string; userId: string }) => {
+    const handleSeen = (payload: {
+      messageId: string;
+      userId: string;
+      username?: string;
+    }) => {
       setMessages((prev) =>
         prev.map((m) =>
           m.id === payload.messageId
             ? {
                 ...m,
                 seenBy: Array.from(new Set([...m.seenBy, payload.userId])),
+                seenByUsernames: Array.from(
+                  new Set([
+                    ...(m.seenByUsernames || []),
+                    payload.username || payload.userId,
+                  ])
+                ),
               }
             : m
         )
@@ -237,36 +289,39 @@ export default function Page({ params }: { params: Promise<{ id: string }> }) {
   }, [socket, id]);
 
   // Manejar selección de archivo y preview
-  const handleFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
+  const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
     setSelectedFile(file);
     setFilePreviewUrl(URL.createObjectURL(file));
-    try {
-      const uploaded = await uploadFile(file);
-      setAttachment(uploaded);
-      console.log("Archivo subido:", uploaded);
-      console.log(attachment);
-    } catch {
-      alert("Error al subir el archivo");
-      setSelectedFile(null);
-      setFilePreviewUrl(null);
-      setAttachment(null);
-    }
   };
 
-  // Enviar mensaje (texto o con adjunto)
-  const handleSend = () => {
+  const handleSend = async () => {
     if (!socket || !currentUserId) return;
     if (!message.trim() && !attachment) return;
 
     console.log("Enviando mensaje:", message, attachment);
 
+    let uploadedAttachment: Attachment | null = null;
+
+    // ✅ Subir solo si hay archivo seleccionado
+    if (selectedFile) {
+      try {
+        console.log("Subiendo archivo:", selectedFile.name);
+        uploadedAttachment = await uploadFile(selectedFile);
+      } catch {
+        alert("Error al subir archivo");
+        return;
+      }
+    }
+
+    console.log(uploadedAttachment);
+
     socket.emit("message-from-client-private", {
       message,
       conversationId: id,
-      type: attachment ? "file" : "text",
-      attachmentId: attachment?.id,
+      type: uploadedAttachment ? "file" : "text",
+      attachmentId: uploadedAttachment?.id,
     });
 
     setMessage("");
@@ -276,7 +331,6 @@ export default function Page({ params }: { params: Promise<{ id: string }> }) {
     setShowEmojiPicker(false);
   };
 
-  // Emoji picker
   const toggleEmojiPicker = () => setShowEmojiPicker((prev) => !prev);
   const addEmoji = (e: any) => setMessage((prev) => prev + e.native);
 
@@ -321,16 +375,17 @@ export default function Page({ params }: { params: Promise<{ id: string }> }) {
                 minute: "2-digit",
               });
               const isMine = msg.sender === currentUserId;
-              const seenNames = msg.seenBy
-                .filter((uid) => uid !== currentUserId)
-                .map((uid) => userMap[uid] || uid);
+              const seenNames =
+                msg.seenByUsernames?.filter(
+                  (name: string) => name !== currentUserName
+                ) || [];
 
               return (
                 <div
                   key={`${msg.id}-${idx}`}
-                  className={`max-w-xs px-4 py-2 rounded-lg text-sm ${
+                  className={`max-w-xs px-4 py-2 rounded-3xl text-sm ${
                     isMine
-                      ? "ml-auto bg-blue-500 text-white rounded-br-none"
+                      ? "ml-auto bg-indigo-500 text-white rounded-br-none"
                       : "bg-white text-gray-900 rounded-bl-none"
                   } mb-2`}
                 >
@@ -342,19 +397,21 @@ export default function Page({ params }: { params: Promise<{ id: string }> }) {
                   </div>
                   <div className="space-y-2">
                     {msg.text && <p>{msg.text}</p>}
-                    {msg.attachment?.type.startsWith("image") && (
-                      <img
-                        src={msg.attachment.url}
-                        alt="attachment"
-                        className="rounded-md max-w-full"
-                      />
-                    )}
-                    {msg.attachment &&
+                    {msg.attachment?.type &&
+                      msg.attachment.type.startsWith("image") && (
+                        <img
+                          src={msg.attachment.url}
+                          alt="attachment"
+                          className="rounded-md max-w-full"
+                        />
+                      )}
+
+                    {msg.attachment?.type &&
                       !msg.attachment.type.startsWith("image") && (
                         <a
                           href={msg.attachment.url}
                           download
-                          className="text-blue-500 underline"
+                          className="text-white underline"
                         >
                           Descargar archivo
                         </a>
@@ -362,7 +419,7 @@ export default function Page({ params }: { params: Promise<{ id: string }> }) {
                   </div>
                   {seenNames.length > 0 && (
                     <div className="text-xs text-gray-400 mt-1">
-                      Visto por: {seenNames.join(", ")}
+                      Seen by: {seenNames.join(", ")}
                     </div>
                   )}
                 </div>
@@ -399,7 +456,6 @@ export default function Page({ params }: { params: Promise<{ id: string }> }) {
           </button>
         </div>
 
-        {/* Preview de archivo adjunto */}
         {filePreviewUrl && (
           <div className="mt-2 relative w-32">
             {selectedFile?.type.startsWith("image") ? (
@@ -426,7 +482,6 @@ export default function Page({ params }: { params: Promise<{ id: string }> }) {
           </div>
         )}
 
-        {/* Emoji picker */}
         {showEmojiPicker && (
           <div ref={emojiPickerRef} className="absolute bottom-20 left-4 z-50">
             <Picker data={emojiData} onEmojiSelect={addEmoji} />

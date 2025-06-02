@@ -19,7 +19,7 @@ export default function LoginPage() {
 
     try {
       const response = await fetch(
-        "https://fabm.online/backend_signlink/api/users/login",
+        `${process.env.NEXT_PUBLIC_API_URL}users/login`,
         {
           method: "POST",
           headers: { "Content-Type": "application/json" },
@@ -35,7 +35,7 @@ export default function LoginPage() {
         console.log("Data:", data);
         localStorage.setItem("accessToken", data.token);
         document.cookie = `refreshToken=${data.refreshToken}; Path=/; Max-Age=7776000; Secure; SameSite=Strict`;
-        router.push("/chats");
+        router.push("/chats/conversation");
       } else {
         const errorData = await response.json();
         setError(errorData.message || "Credenciales inválidas");

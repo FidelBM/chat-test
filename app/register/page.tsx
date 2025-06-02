@@ -38,7 +38,7 @@ export default function RegisterPage() {
 
     try {
       const response = await fetch(
-        "https://fabm.online/backend_signlink/api/users/register",
+        `${process.env.NEXT_PUBLIC_API_URL}users/register`,
         {
           method: "POST",
           headers: { "Content-Type": "application/json" },

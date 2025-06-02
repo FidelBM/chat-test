@@ -16,7 +16,7 @@ function MyApp({ Component, pageProps }: AppProps) {
       if (refreshToken) {
         try {
           const res = await fetch(
-            "https://fabm.online/backend_signlink/api/users/refresh",
+            `${process.env.NEXT_PUBLIC_API_URL}users/refresh`,
             {
               method: "POST",
               headers: { "Content-Type": "application/json" },
@@ -27,6 +27,7 @@ function MyApp({ Component, pageProps }: AppProps) {
           if (res.ok) {
             const data = await res.json();
             console.log("Access Token:", data.accessToken);
+            localStorage.setItem("accessToken", data.accessToken);
             // Puedes guardar el accessToken en memoria, localStorage, etc. (con precaución)
           } else {
             console.warn("No se pudo renovar el token");

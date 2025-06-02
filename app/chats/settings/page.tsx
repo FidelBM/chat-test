@@ -23,14 +23,11 @@ export default function UserSettings() {
       if (!token) return;
 
       try {
-        const res = await fetch(
-          "https://fabm.online/backend_signlink/api/v1/users",
-          {
-            headers: {
-              Authorization: `Bearer ${token}`,
-            },
-          }
-        );
+        const res = await fetch(`${process.env.NEXT_PUBLIC_API_URL}users`, {
+          headers: {
+            Authorization: `Bearer ${token}`,
+          },
+        });
         const data = await res.json();
         setUser(data.user);
         setForm({
@@ -61,7 +58,7 @@ export default function UserSettings() {
     setMessage(null);
     try {
       const res = await fetch(
-        "https://fabm.online/backend_signlink/api/v1/users/update",
+        `${process.env.NEXT_PUBLIC_API_URL}users/update`,
         {
           method: "PATCH",
           headers: {

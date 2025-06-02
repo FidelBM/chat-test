@@ -22,7 +22,6 @@ const ContractTable = () => {
   const [friendRequests, setFriendRequests] = useState<FriendRequest[]>([]);
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(true);
-  const apiUrl = process.env.NEXT_PUBLIC_API_URL;
 
   const [showModal, setShowModal] = useState(false);
   const [searchQuery, setSearchQuery] = useState("");
@@ -65,7 +64,7 @@ const ContractTable = () => {
 
     try {
       const response = await fetch(
-        "https://fabm.online/backend_signlink/api/users/friends",
+        `${process.env.NEXT_PUBLIC_API_URL}users/friends`,
         {
           headers: {
             Authorization: `Bearer ${token}`,
@@ -90,7 +89,7 @@ const ContractTable = () => {
 
     try {
       const res = await fetch(
-        "https://fabm.online/backend_signlink/api/users/friend-request",
+        `${process.env.NEXT_PUBLIC_API_URL}users/friend-request`,
         {
           headers: {
             Authorization: `Bearer ${token}`,
@@ -113,7 +112,7 @@ const ContractTable = () => {
 
     try {
       const response = await fetch(
-        `https://fabm.online/backend_signlink/api/users/friend/${searchQuery}`,
+        `${process.env.NEXT_PUBLIC_API_URL}users/friend/${searchQuery}`,
         {
           headers: {
             Authorization: `Bearer ${token}`,
@@ -138,7 +137,7 @@ const ContractTable = () => {
 
     try {
       const res = await fetch(
-        "https://fabm.online/backend_signlink/api/users/friend-request",
+        `${process.env.NEXT_PUBLIC_API_URL}users/friend-request`,
         {
           method: "POST",
           headers: {
@@ -176,28 +175,22 @@ const ContractTable = () => {
 
     try {
       // Aceptar o rechazar solicitud
-      await fetch(
-        `https://fabm.online/backend_signlink/api/users/${endpoint}`,
-        {
-          method: "POST",
-          headers: {
-            Authorization: `Bearer ${token}`,
-          },
-        }
-      );
+      await fetch(`${process.env.NEXT_PUBLIC_API_URL}users/${endpoint}`, {
+        method: "POST",
+        headers: {
+          Authorization: `Bearer ${token}`,
+        },
+      });
 
       // Si fue aceptada, crear conversación
       if (accept) {
         // 1. Obtener usuario actual
-        const userRes = await fetch(
-          "https://fabm.online/backend_signlink/api/users",
-          {
-            method: "GET",
-            headers: {
-              Authorization: `Bearer ${token}`,
-            },
-          }
-        );
+        const userRes = await fetch(`${process.env.NEXT_PUBLIC_API_URL}users`, {
+          method: "GET",
+          headers: {
+            Authorization: `Bearer ${token}`,
+          },
+        });
 
         if (!userRes.ok)
           throw new Error("No se pudo obtener el usuario actual");
@@ -205,7 +198,7 @@ const ContractTable = () => {
         const currentUser = await userRes.json();
 
         const group = await fetch(
-          "https://fabm.online/backend_signlink/api/conversation/create-conversation",
+          `${process.env.NEXT_PUBLIC_API_URL}conversation/create-conversation`,
           {
             method: "POST",
             headers: {

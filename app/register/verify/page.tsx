@@ -10,7 +10,7 @@ export default function VerifyPage() {
   const inputsRef = useRef<(HTMLInputElement | null)[]>([]);
 
   const handleChange = (index: number, value: string) => {
-    if (!/^[0-9]?$/.test(value)) return; // solo dígitos
+    if (!/^[0-9]?$/.test(value)) return;
     const newCode = [...code];
     newCode[index] = value;
     setCode(newCode);
@@ -29,7 +29,7 @@ export default function VerifyPage() {
 
     try {
       const res = await fetch(
-        `https://fabm.online/backend_signlink/api/users/verify/${fullCode}`,
+        `${process.env.NEXT_PUBLIC_API_URL}users/verify/${fullCode}`,
         {
           method: "POST",
         }

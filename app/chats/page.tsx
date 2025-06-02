@@ -20,7 +20,7 @@ const ChatPage = () => {
     const fetchConversations = async () => {
       try {
         const res = await fetch(
-          "https://fabm.online/backend_signlink/api/conversation/user-conversations",
+          `${process.env.NEXT_PUBLIC_API_URL}conversation/user-conversations`,
           {
             headers: {
               Authorization: `Bearer ${token}`,
@@ -40,7 +40,7 @@ const ChatPage = () => {
                 (m: any) => m.userId !== getUserIdFromToken(token)
               );
               const userRes = await fetch(
-                `https://fabm.online/backend_signlink/api/users/friend/id/${otherMember.userId}`,
+                `${process.env.NEXT_PUBLIC_API_URL}users/friend/id/${otherMember.userId}`,
                 {
                   headers: {
                     Authorization: `Bearer ${token}`,
@@ -74,7 +74,7 @@ const ChatPage = () => {
       }
     };
 
-    const socket = io("https://fabm.online", {
+    const socket = io(`${process.env.NEXT_PUBLIC_API_URL_SOCKET}`, {
       path: "/backend_signlink/socket.io",
       auth: { token },
       transports: ["websocket"], // para evitar errores de polling
